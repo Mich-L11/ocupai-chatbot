@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OcupAI BOT - Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="card" id="chatCard" role="application" aria-label="Chat OcupAI">
+      <div class="card-header">
+        <div class="brand">
+          <div class="logo">AI</div>
+          <div>
+            <h1>OcupAI BOT</h1>
+            <p>Asistente virtual — UDES</p>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="toggleTheme" class="btn" title="Modo oscuro/claro">Modo oscuro</button>
+          <button id="resetBtn" class="btn" title="Limpiar chat">Reset</button>
+        </div>
+      </div>
+
+      <div class="messages-wrap" id="messagesWrap" tabindex="0" aria-live="polite">
+        <div class="messages" id="messages">
+          <!-- Mensajes inyectados por JS -->
+        </div>
+      </div>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <div class="input" role="search">
+          <textarea id="inputBox" class="inputbox" placeholder="Escribe un mensaje..." aria-label="Mensaje"></textarea>
+        </div>
+        <div>
+          <button id="sendBtn" class="send" type="submit">Enviar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script>
+  // Config
+  const API_ENDPOINT = '/api/chat'; // ajusta si tu backend está en otra ruta
+  const BOT_INITIAL = "¡Hola! Soy OcupAI BOT. ¿En qué puedo ayudarte hoy?";
+  let loading = false;
+
+  // Elementos
+  const messagesEl = document.getElementById('messages');
+  const messagesWrap = document.getElementById('messagesWrap');
+  const inputBox = document.getElementById('inputBox');
+  const sendBtn = document.getElementById('sendBtn');
+  const toggleTheme = document.getElementById('toggleTheme');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // Inicial: bot greeting
+  addMessage('bot', BOT_INITIAL);
+
+  // --- THEME PERSISTENCE: aplica tema guardado al cargar ---
+  (function applySavedTheme(){
+    const saved = localStorage.getItem('ocupai_theme'); // 'dark' or 'light'
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+      toggleTheme.textContent = 'Modo claro';
+    } else {
+      document.documentElement.classList.remove('dark');
+      toggleTheme.textContent = 'Modo oscuro';
+    }
+  })();
+
+  // Functions
+  function addMessage(from, text, meta = '') {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg ' + (from === 'user' ? 'user' : 'bot');
+
+    if (meta) {
+      const m = document.createElement('div');
+      m.className = 'meta';
+      m.textContent = meta;
+      wrapper.appendChild(m);
+    }
+
+    const p = document.createElement('div');
+    p.textContent = text;
+    wrapper.appendChild(p);
+    messagesEl.appendChild(wrapper);
+    scrollToBottom();
+  }
+
+  function setTyping(on) {
+    const existing = document.getElementById('typingIndicator');
+    if (on) {
+      if (existing) return;
+      const el = document.createElement('div');
+      el.id = 'typingIndicator';
+      el.className = 'msg bot';
+      el.innerHTML = '<div class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+      messagesEl.appendChild(el);
+      scrollToBottom();
+    } else {
+      if (existing) existing.remove();
+    }
+  }
+
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      messagesWrap.scrollTop = messagesWrap.scrollHeight + 200;
+    });
+  }
+
+  async function sendMessage(text) {
+    if (!text || loading) return;
+    loading = true;
+    setTyping(false);
+
+    addMessage('user', text);
+    inputBox.value = '';
+    setTyping(true);
+
+    try {
+      const res = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+
+      if (!res.ok) {
+        throw new Error('Error en fetch: ' + res.status);
+      }
+
+      const data = await res.json();
+      const reply = data?.reply ?? 'Lo siento, no obtuve respuesta del servidor.';
+      setTimeout(() => {
+        setTyping(false);
+        addMessage('bot', reply);
+        loading = false;
+      }, 350);
+
+    } catch (err) {
+      setTyping(false);
+      addMessage('bot', 'No he podido conectar con el servidor. Intenta más tarde.');
+      console.error(err);
+      loading = false;
+    }
+  }
+
+  // Events
+  document.getElementById('composer').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = inputBox.value.trim();
+    if (text) sendMessage(text);
+  });
+
+  inputBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const text = inputBox.value.trim();
+      if (text) sendMessage(text);
+    }
+  });
+
+  toggleTheme.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    const isDark = document.documentElement.classList.contains('dark');
+    toggleTheme.textContent = isDark ? 'Modo claro' : 'Modo oscuro';
+    localStorage.setItem('ocupai_theme', isDark ? 'dark' : 'light');
+  });
+
+  resetBtn.addEventListener('click', () => {
+    messagesEl.innerHTML = '';
+    addMessage('bot', BOT_INITIAL);
+  });
+
+  // Accessibility: focus input on load
+  window.addEventListener('load', () => inputBox.focus());
+</script>
+</body>
+</html>
