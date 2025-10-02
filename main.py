@@ -1,40 +1,71 @@
-from fastapi import FastAPI, Request
-from pydantic import BaseModel
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+import os
+import json
+import pickle
+import random
+import numpy as np
+import nltk
+
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-import json, pickle, numpy as np
-import nltk, random, traceback
-from nltk.stem import WordNetLemmatizer
-from tensorflow.keras.models import load_model
+from pydantic import BaseModel
 
+# Descargar recursos NLTK si no están
 nltk.download('punkt', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 
+# --- Inicializar app ---
 app = FastAPI()
 
+# Servir archivos estáticos (CSS, JS, imágenes)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Cargar recursos ---
-try:
-    with open('intents.json', 'r', encoding='utf-8') as f:
-        intents = json.load(f)
+# --- Variables globales ---
+model = None
+words = []
+classes = []
+intents = {}
 
-    with open('words.pkl', 'rb') as f:
-        words = pickle.load(f)
+from nltk.stem import WordNetLemmatizer
+lemmatizer = WordNetLemmatizer()
 
-    with open('classes.pkl', 'rb') as f:
-        classes = pickle.load(f)
+# --- Cargar archivos de recursos ---
+def load_resources():
+    global intents, words, classes, model
+    try:
+        with open('intents.json', 'r', encoding='utf-8') as f:
+            intents = json.load(f)
+        print("✅ intents.json cargado correctamente.")
+    except Exception as e:
+        print(f"❌ Error cargando intents.json: {e}")
 
-    model = load_model('chatbot_model.h5')
-    lemmatizer = WordNetLemmatizer()
-    print("✅ Modelo y recursos cargados correctamente")
+    try:
+        with open('words.pkl', 'rb') as f:
+            words = pickle.load(f)
+        print("✅ words.pkl cargado correctamente.")
+    except Exception as e:
+        print(f"❌ Error cargando words.pkl: {e}")
 
-except Exception as e:
-    print("Error cargando modelo o recursos:", e)
-    traceback.print_exc()
+    try:
+        with open('classes.pkl', 'rb') as f:
+            classes = pickle.load(f)
+        print("✅ classes.pkl cargado correctamente.")
+    except Exception as e:
+        print(f"❌ Error cargando classes.pkl: {e}")
 
+    try:
+        from tensorflow.keras.models import load_model
+        model = load_model('chatbot_model.h5')
+        print("✅ Modelo cargado correctamente.")
+    except Exception as e:
+        print(f"❌ Error cargando chatbot_model.h5: {e}")
+        model = None
+
+load_resources()
+
+# --- Funciones del chatbot ---
 def clean_up_sentence(sentence):
     tokens = nltk.word_tokenize(sentence)
     tokens = [lemmatizer.lemmatize(t.lower()) for t in tokens]
@@ -42,14 +73,16 @@ def clean_up_sentence(sentence):
 
 def bag_of_words(sentence):
     sentence_words = clean_up_sentence(sentence)
-    bag = [0]*len(words)
+    bag = [0] * len(words)
     for s in sentence_words:
-        for i,w in enumerate(words):
+        for i, w in enumerate(words):
             if w == s:
                 bag[i] = 1
     return np.array(bag, dtype=np.float32)
 
 def predict_class(sentence, threshold=0.35):
+    if model is None:
+        return None, 0.0
     bow = bag_of_words(sentence)
     res = model.predict(np.array([bow]), verbose=0)[0]
     max_prob = float(np.max(res))
@@ -60,44 +93,45 @@ def predict_class(sentence, threshold=0.35):
 
 def get_response(tag):
     if tag is None:
-        return "Lo siento, no entiendo. ¿Podrías reformular?"
-    for intent in intents['intents']:
+        return "Lo siento, no entiendo. ¿Podrías reformular o escoger una opción del menú?"
+    for intent in intents.get('intents', []):
         if intent.get('tag') == tag:
             return random.choice(intent.get('responses', ["Lo siento."]))
     return "Lo siento, no encuentro respuesta adecuada."
 
-# ----------- API -----------
-
+# --- API ---
 class ChatRequest(BaseModel):
     message: str
 
 @app.post("/api/chat")
-async def api_chat(request: ChatRequest):
+def api_chat(request: ChatRequest):
+    if model is None:
+        return {"reply": "⚠️ Error: el modelo no está cargado en el servidor."}
+
+    message = request.message.strip()
+    if not message:
+        return {"reply": "Escribe algo para comenzar."}
+
     try:
-        message = request.message.strip()
-        if not message:
-            return {"reply": "Escribe algo para comenzar."}
         tag, conf = predict_class(message)
         reply = get_response(tag)
         return {"reply": reply, "tag": tag, "confidence": conf}
     except Exception as e:
-        print("Error en /api/chat:", e)
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e), "trace": traceback.format_exc()}
-        )
+        print(f"❌ Error procesando mensaje: {e}")
+        return {"reply": "⚠️ Ocurrió un error en el servidor."}
 
-# ----------- Ruta raíz (sirve index.html) -----------
-
+# --- Ruta raíz ---
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return FileResponse("index.html")
+    try:
+        return FileResponse("index.html")
+    except:
+        return HTMLResponse("<h1>⚠️ No se encontró index.html</h1>")
 
-# === Habilitar CORS ===
+# --- Habilitar CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
