@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>OcupAI BOT - Chat</title>
-  <link rel="stylesheet" href="styles.css">
+  <!-- Corregido: CSS desde /static -->
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <div class="app" id="app">
@@ -25,9 +26,7 @@
       </div>
 
       <div class="messages-wrap" id="messagesWrap" tabindex="0" aria-live="polite">
-        <div class="messages" id="messages">
-          <!-- Mensajes inyectados por JS -->
-        </div>
+        <div class="messages" id="messages"></div>
       </div>
 
       <form id="composer" class="composer" autocomplete="off">
@@ -42,12 +41,11 @@
   </div>
 
 <script>
-  // Config
-  const API_ENDPOINT = '/api/chat'; // ajusta si tu backend está en otra ruta
+  // Ajusta si lo corres en local. Para Render, basta "/api/chat"
+  const API_ENDPOINT = '/api/chat';  
   const BOT_INITIAL = "¡Hola! Soy OcupAI BOT. ¿En qué puedo ayudarte hoy?";
   let loading = false;
 
-  // Elementos
   const messagesEl = document.getElementById('messages');
   const messagesWrap = document.getElementById('messagesWrap');
   const inputBox = document.getElementById('inputBox');
@@ -55,12 +53,10 @@
   const toggleTheme = document.getElementById('toggleTheme');
   const resetBtn = document.getElementById('resetBtn');
 
-  // Inicial: bot greeting
   addMessage('bot', BOT_INITIAL);
 
-  // --- THEME PERSISTENCE: aplica tema guardado al cargar ---
   (function applySavedTheme(){
-    const saved = localStorage.getItem('ocupai_theme'); // 'dark' or 'light'
+    const saved = localStorage.getItem('ocupai_theme');
     if (saved === 'dark') {
       document.documentElement.classList.add('dark');
       toggleTheme.textContent = 'Modo claro';
@@ -70,18 +66,15 @@
     }
   })();
 
-  // Functions
   function addMessage(from, text, meta = '') {
     const wrapper = document.createElement('div');
     wrapper.className = 'msg ' + (from === 'user' ? 'user' : 'bot');
-
     if (meta) {
       const m = document.createElement('div');
       m.className = 'meta';
       m.textContent = meta;
       wrapper.appendChild(m);
     }
-
     const p = document.createElement('div');
     p.textContent = text;
     wrapper.appendChild(p);
@@ -126,9 +119,7 @@
         body: JSON.stringify({ message: text })
       });
 
-      if (!res.ok) {
-        throw new Error('Error en fetch: ' + res.status);
-      }
+      if (!res.ok) throw new Error('Error en fetch: ' + res.status);
 
       const data = await res.json();
       const reply = data?.reply ?? 'Lo siento, no obtuve respuesta del servidor.';
@@ -146,7 +137,6 @@
     }
   }
 
-  // Events
   document.getElementById('composer').addEventListener('submit', (e) => {
     e.preventDefault();
     const text = inputBox.value.trim();
@@ -173,7 +163,6 @@
     addMessage('bot', BOT_INITIAL);
   });
 
-  // Accessibility: focus input on load
   window.addEventListener('load', () => inputBox.focus());
 </script>
 </body>

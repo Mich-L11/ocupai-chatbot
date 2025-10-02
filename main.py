@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import json, pickle, numpy as np
 import nltk, random
 from nltk.stem import WordNetLemmatizer
@@ -12,6 +13,9 @@ nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 
 app = FastAPI()
+
+# 👇 Montar carpeta static para servir CSS/JS/imagenes
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Cargar recursos
 with open('intents.json', 'r', encoding='utf-8') as f:
@@ -71,7 +75,7 @@ def api_chat(request: ChatRequest):
     reply = get_response(tag)
     return {"reply": reply, "tag": tag, "confidence": conf}
 
-# ----------- Ruta raíz opcional (sirve index.html) -----------
+# ----------- Ruta raíz (sirve index.html) -----------
 
 @app.get("/")
 def index():
