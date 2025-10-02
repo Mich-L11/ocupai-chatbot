@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>OcupAI BOT - Chat</title>
-  <!-- Corregido: CSS desde /static -->
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -26,7 +25,9 @@
       </div>
 
       <div class="messages-wrap" id="messagesWrap" tabindex="0" aria-live="polite">
-        <div class="messages" id="messages"></div>
+        <div class="messages" id="messages">
+          <!-- Mensajes inyectados por JS -->
+        </div>
       </div>
 
       <form id="composer" class="composer" autocomplete="off">
@@ -41,11 +42,12 @@
   </div>
 
 <script>
-  // Ajusta si lo corres en local. Para Render, basta "/api/chat"
-  const API_ENDPOINT = '/api/chat';  
+  // Config
+  const API_ENDPOINT = '/api/chat'; // backend en Render
   const BOT_INITIAL = "¡Hola! Soy OcupAI BOT. ¿En qué puedo ayudarte hoy?";
   let loading = false;
 
+  // Elementos
   const messagesEl = document.getElementById('messages');
   const messagesWrap = document.getElementById('messagesWrap');
   const inputBox = document.getElementById('inputBox');
@@ -53,8 +55,10 @@
   const toggleTheme = document.getElementById('toggleTheme');
   const resetBtn = document.getElementById('resetBtn');
 
+  // Inicial: bot greeting
   addMessage('bot', BOT_INITIAL);
 
+  // --- THEME PERSISTENCE ---
   (function applySavedTheme(){
     const saved = localStorage.getItem('ocupai_theme');
     if (saved === 'dark') {
@@ -137,6 +141,7 @@
     }
   }
 
+  // Events
   document.getElementById('composer').addEventListener('submit', (e) => {
     e.preventDefault();
     const text = inputBox.value.trim();
