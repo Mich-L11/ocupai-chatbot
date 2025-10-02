@@ -1,35 +1,39 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import json, pickle, numpy as np
-import nltk, random
+import nltk, random, traceback
 from nltk.stem import WordNetLemmatizer
 from tensorflow.keras.models import load_model
 
-# Descargar recursos necesarios (solo si no están ya en cache)
 nltk.download('punkt', quiet=True)
 nltk.download('wordnet', quiet=True)
 nltk.download('omw-1.4', quiet=True)
 
 app = FastAPI()
 
-# 👇 Montar carpeta static para servir CSS/JS/imagenes
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Cargar recursos
-with open('intents.json', 'r', encoding='utf-8') as f:
-    intents = json.load(f)
+# --- Cargar recursos ---
+try:
+    with open('intents.json', 'r', encoding='utf-8') as f:
+        intents = json.load(f)
 
-with open('words.pkl', 'rb') as f:
-    words = pickle.load(f)
+    with open('words.pkl', 'rb') as f:
+        words = pickle.load(f)
 
-with open('classes.pkl', 'rb') as f:
-    classes = pickle.load(f)
+    with open('classes.pkl', 'rb') as f:
+        classes = pickle.load(f)
 
-model = load_model('chatbot_model.h5')
-lemmatizer = WordNetLemmatizer()
+    model = load_model('chatbot_model.h5')
+    lemmatizer = WordNetLemmatizer()
+    print("✅ Modelo y recursos cargados correctamente")
+
+except Exception as e:
+    print("Error cargando modelo o recursos:", e)
+    traceback.print_exc()
 
 def clean_up_sentence(sentence):
     tokens = nltk.word_tokenize(sentence)
@@ -56,7 +60,7 @@ def predict_class(sentence, threshold=0.35):
 
 def get_response(tag):
     if tag is None:
-        return "Lo siento, no entiendo. ¿Podrías reformular o escoger una opción del menú?"
+        return "Lo siento, no entiendo. ¿Podrías reformular?"
     for intent in intents['intents']:
         if intent.get('tag') == tag:
             return random.choice(intent.get('responses', ["Lo siento."]))
@@ -68,25 +72,32 @@ class ChatRequest(BaseModel):
     message: str
 
 @app.post("/api/chat")
-def api_chat(request: ChatRequest):
-    message = request.message.strip()
-    if not message:
-        return {"reply": "Escribe algo para comenzar."}
-    tag, conf = predict_class(message)
-    reply = get_response(tag)
-    return {"reply": reply, "tag": tag, "confidence": conf}
+async def api_chat(request: ChatRequest):
+    try:
+        message = request.message.strip()
+        if not message:
+            return {"reply": "Escribe algo para comenzar."}
+        tag, conf = predict_class(message)
+        reply = get_response(tag)
+        return {"reply": reply, "tag": tag, "confidence": conf}
+    except Exception as e:
+        print("Error en /api/chat:", e)
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "trace": traceback.format_exc()}
+        )
 
 # ----------- Ruta raíz (sirve index.html) -----------
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
+    return FileResponse("index.html")
 
 # === Habilitar CORS ===
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Puedes poner aquí la URL de tu frontend si la tienes separada
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
