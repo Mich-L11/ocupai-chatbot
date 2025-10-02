@@ -1,5 +1,9 @@
 fastapi
-uvicorn
-tensorflow==2.20.0
-nltk
+uvicorn[standard]
+pydantic
+python-multipart
 numpy
+nltk
+tensorflow==2.20.0
+keras
+h5py
