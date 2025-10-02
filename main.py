@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import json, pickle, numpy as np
 import nltk, random
 from nltk.stem import WordNetLemmatizer
@@ -80,3 +81,12 @@ def api_chat(request: ChatRequest):
 @app.get("/")
 def index():
     return FileResponse("index.html")
+
+# === Habilitar CORS ===
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Puedes poner aquí la URL de tu frontend si la tienes separada
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
