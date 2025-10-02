@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import json, pickle, numpy as np
@@ -78,9 +78,10 @@ def api_chat(request: ChatRequest):
 
 # ----------- Ruta raíz (sirve index.html) -----------
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def index():
-    return FileResponse("index.html")
+    with open("index.html", "r", encoding="utf-8") as f:
+        return f.read()
 
 # === Habilitar CORS ===
 app.add_middleware(
